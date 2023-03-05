@@ -1,0 +1,1 @@
+# bulk-nft-burner-solana
