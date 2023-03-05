@@ -1,5 +1,5 @@
 const { PublicKey, Keypair, Connection, Transaction, sendAndConfirmTransaction } = require('@solana/web3.js');
-const { Metadata, createBurnNftInstruction } = require('@metaplex-foundation/mpl-token-metadata')
+const { PROGRAM_ID, Metadata, createBurnNftInstruction } = require('@metaplex-foundation/mpl-token-metadata')
 const { programs, actions, NodeWallet } = require('@metaplex/js');
 const { Metaplex, keypairIdentity, BundlrStorageDriver, toMetaplexFile } = require('@metaplex-foundation/js');
 const { TOKEN_PROGRAM_ID, createBurnCheckedInstruction, createCloseAccountInstruction, getOrCreateAssociatedTokenAccount, createMintToInstruction } = require('@solana/spl-token')
@@ -21,10 +21,10 @@ let wallets = require('./solana.json');
 
 
 const SPL_ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
-const METAPLEX_TOKEN_METADATA_PROGRAM_ID = new PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s');
+const METAPLEX_TOKEN_METADATA_PROGRAM_ID = PROGRAM_ID
 const UPDATE_AUTHORITY = new PublicKey('4ZCiGakZJy5aJsLpMBNBNwyrmNCCSCzukzhaPzzd4d7v');
 
-const getTokenWallet = (wallet, mint) => PublicKey.findProgramAddressSync([wallet.toBuffer(), TOKEN_PROGRAM_ID.toBuffer(), mint.toBuffer()], SPL_ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID)[0];
+const getTokenWallet = (wallet, mint) => PublicKey.findProgramAddressSync([wallet.toBuffer(), METAPLEX_TOKEN_METADATA_PROGRAM_ID.toBuffer(), mint.toBuffer()], METAPLEX_TOKEN_METADATA_PROGRAM_ID)[0];
 
 const getOwnedNft = async (owner) => {
     const findAll = await metaplex.nfts().findAllByOwner({ owner });
@@ -53,8 +53,10 @@ const burnNFT = async (conn, treasuryKeypair, nftObj) => {
             mint: nftObj.mint.address,
             tokenAccount: tokenWallet,
             masterEditionAccount: nftObj.edition.address,
-            splTokenProgram: TOKEN_PROGRAM_ID
+            splTokenProgram: SPL_ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID,
+            collectionMetadata: nftObj.collection.address
         });
+        
         burnAndClose.add(burnNFTIx);
         const burnAndCloseTx = await sendAndConfirmTransaction(connection, burnAndClose, [treasuryKeypair]);
 
