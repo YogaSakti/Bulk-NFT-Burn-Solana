@@ -1,0 +1,14 @@
+{
+  "name": "solana-burn",
+  "version": "1.0.0",
+  "main": "burn.js",
+  "dependencies": {
+    "@metaplex-foundation/js": "^0.18.3",
+    "@metaplex-foundation/mpl-token-metadata": "^2.8.6",
+    "@metaplex/js": "^4.12.0",
+    "@solana/spl-token": "^0.3.7",
+    "@solana/web3.js": "^1.73.0",
+    "bs58": "^5.0.0",
+    "dotenv": "^16.0.3"
+  }
+}
