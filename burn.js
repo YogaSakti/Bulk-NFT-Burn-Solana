@@ -1,13 +1,14 @@
+const bs58 = require('bs58');
 const { PublicKey, Keypair, Connection, Transaction, sendAndConfirmTransaction } = require('@solana/web3.js');
-const { PROGRAM_ID, Metadata, createBurnNftInstruction } = require('@metaplex-foundation/mpl-token-metadata')
+const { PROGRAM_ID, Metadata, createBurnNftInstruction, PROGRAM_ADDRESS } = require('@metaplex-foundation/mpl-token-metadata')
 const { programs, actions, NodeWallet } = require('@metaplex/js');
 const { Metaplex, keypairIdentity, BundlrStorageDriver, toMetaplexFile } = require('@metaplex-foundation/js');
-const { TOKEN_PROGRAM_ID, createBurnCheckedInstruction, createCloseAccountInstruction, getOrCreateAssociatedTokenAccount, createMintToInstruction } = require('@solana/spl-token')
-const bs58 = require('bs58');
+const { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, createBurnCheckedInstruction, createCloseAccountInstruction, getOrCreateAssociatedTokenAccount, createMintToInstruction } = require('@solana/spl-token')
 
-const connection = new Connection('https://rpc.ankr.com/solana', 'confirmed');
+const connection = new Connection('https://rpc.ankr.com/solana', 'max');
 const metaplex = new Metaplex(connection);
 
+// eslint-disable-next-line no-promise-executor-return
 const timeout = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 let wallets = require('./solana.json');
@@ -20,11 +21,11 @@ let wallets = require('./solana.json');
 // ]
 
 
-const SPL_ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
-const METAPLEX_TOKEN_METADATA_PROGRAM_ID = PROGRAM_ID
+// i'am cant get collection metadata address for now, so i set it manually
+const COLLECTION_METADATA = new PublicKey('3CBF1bzb5fxmzCwj2dyS3Q8UeYCdfShb5fLYkYU6daRs')
 const UPDATE_AUTHORITY = new PublicKey('4ZCiGakZJy5aJsLpMBNBNwyrmNCCSCzukzhaPzzd4d7v');
 
-const getTokenWallet = (wallet, mint) => PublicKey.findProgramAddressSync([wallet.toBuffer(), METAPLEX_TOKEN_METADATA_PROGRAM_ID.toBuffer(), mint.toBuffer()], METAPLEX_TOKEN_METADATA_PROGRAM_ID)[0];
+const getTokenAccount = (wallet, mint) => PublicKey.findProgramAddressSync([wallet.toBuffer(), TOKEN_PROGRAM_ID.toBuffer(), mint.toBuffer()], ASSOCIATED_TOKEN_PROGRAM_ID)[0];
 
 const getOwnedNft = async (owner) => {
     const findAll = await metaplex.nfts().findAllByOwner({ owner });
@@ -34,31 +35,36 @@ const getOwnedNft = async (owner) => {
     return nfts;
 }
 
+
 const burnNFT = async (conn, treasuryKeypair, nftObj) => {
     try {
         const wallet = new NodeWallet(treasuryKeypair);
-        const tokenWallet = getTokenWallet(wallet.publicKey, nftObj.mint.address);
-        console.log('Token Wallet:', tokenWallet.toString(), 'Treasury:', treasuryKeypair.publicKey.toString(), 'Token:', nftObj.mint.address.toString(), 'Metadata:', nftObj.metadataAddress.toString(), 'Edition:', nftObj.edition.address.toString());
+        const ownerAddress = wallet.publicKey;
+        const tokenAccount = getTokenAccount(wallet.publicKey, nftObj.mint.address);
+        const { metadataAddress } = nftObj;
+        const { address: mintAddress } = nftObj.mint
+        const { address: editionAddress } = nftObj.edition
 
-        const { blockhash } = await conn.getLatestBlockhash('finalized')
+        // console.log('Token Wallet:', tokenAccount.toString(), 'Treasury:', treasuryKeypair.publicKey.toString(), 'Token:', nftObj.mint.address.toString(), 'Metadata:', nftObj.metadataAddress.toString(), 'Edition:', nftObj.edition.address.toString());
+
         const burnAndClose = new Transaction({
-            recentBlockhash: blockhash,
-            // the buyer pays the transaction fee
-            feePayer: treasuryKeypair.publicKey
+            feePayer: ownerAddress
         })
 
-        const burnNFTIx = createBurnNftInstruction({
-            metadata: nftObj.metadataAddress,
-            owner: wallet.publicKey,
-            mint: nftObj.mint.address,
-            tokenAccount: tokenWallet,
-            masterEditionAccount: nftObj.edition.address,
-            splTokenProgram: SPL_ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID,
-            collectionMetadata: nftObj.collection.address
-        });
-        
+        const txData = {
+            metadata: metadataAddress,
+            owner: ownerAddress,
+            mint: mintAddress,
+            tokenAccount,
+            masterEditionAccount: editionAddress,
+            splTokenProgram: TOKEN_PROGRAM_ID,
+            collectionMetadata: COLLECTION_METADATA
+        }
+
+        const burnNFTIx = createBurnNftInstruction(txData, new PublicKey(PROGRAM_ADDRESS));
         burnAndClose.add(burnNFTIx);
-        const burnAndCloseTx = await sendAndConfirmTransaction(connection, burnAndClose, [treasuryKeypair]);
+        // const burnAndCloseTx = await sendAndConfirmTransaction(connection, burnAndClose, [treasuryKeypair], { commitment: 'max' });
+        const burnAndCloseTx = await connection.sendTransaction(burnAndClose, [treasuryKeypair], { preflightCommitment: 'finalized' });
 
         const returnArrayPacket = {
             Success: true,
@@ -67,10 +73,10 @@ const burnNFT = async (conn, treasuryKeypair, nftObj) => {
 
         return returnArrayPacket;
     } catch (err) {
-        console.error(err);
+        console.log(err);
         const returnArrayPacket = {
             Success: false,
-            burnNFT: ''
+            burnNFT: 'Error'
         }
         
         return returnArrayPacket;
@@ -79,7 +85,6 @@ const burnNFT = async (conn, treasuryKeypair, nftObj) => {
 
 const runCriticalTX = async (conn, treasuryKeypair, nftsToUpdate) => {
     let receivableImploded = nftsToUpdate;
-    let returnObj;
     while (receivableImploded.length > 0) {
         const failedArray = []
         let delay = 0;
@@ -87,21 +92,19 @@ const runCriticalTX = async (conn, treasuryKeypair, nftsToUpdate) => {
             await timeout(delay++ * 15);
             const returnArrayPacket = await burnNFT(conn, treasuryKeypair, nftObj);
             if (returnArrayPacket.Success) {
-                console.log('Successfully burned NFT');
-                returnObj = returnArrayPacket.burnNFT;
+                console.log(`Successfully burned NFT - ${nftObj.json.name} - ${returnArrayPacket.burnNFT}`);
             } else if (!returnArrayPacket.Success) {
 
                 failedArray.push(nftObj);
-                console.log('Failed to burn');
+                console.log(`Failed to burn - ${nftObj.json.name}`);
             }
 
         }));
         receivableImploded = failedArray;
-        console.log('Failed to burn:', receivableImploded.length);
-        await timeout(10000);
+        console.log('Total Failed to burn:', receivableImploded.length);
+        await timeout(5000);
     }
-
-    console.log('Succeeded, generated:', returnObj);
+    console.log(`Successfully burned ${nftsToUpdate.length} NFTs`);
 }
 
 
@@ -113,9 +116,10 @@ const runCriticalTX = async (conn, treasuryKeypair, nftsToUpdate) => {
         const owner = new PublicKey(wallet.address);
         const treasuryKeypair = Keypair.fromSecretKey(bs58.decode(wallet.privateKey))
         let nftsByOwner = await getOwnedNft(owner);
-
-        console.log(`Burning ${nftsByOwner.length} NFTs Owned by Public Key:`, treasuryKeypair.publicKey.toString());
+        if (nftsByOwner.length >= 1) {
+            console.log(`[${i}] Burning ${nftsByOwner.length} NFTs Owned by Public Key:`, treasuryKeypair.publicKey.toString());
         
-        await runCriticalTX(connection, treasuryKeypair, nftsByOwner);
+            await runCriticalTX(connection, treasuryKeypair, nftsByOwner);
+        }
     }
 })()
