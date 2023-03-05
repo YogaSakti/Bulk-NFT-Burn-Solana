@@ -15,4 +15,4 @@ I copied some code from [this repo](https://github.com/Swertin/BulkNftBurnTool) 
 ### This code is not fully usable because there is still an error that I can't fix yet...
 
 here is the error i got, if you can help me to fix this script i will be very grateful and maybe give you a little reward in the form of $SOL
-![image](https://user-images.githubusercontent.com/24309806/222964016-e6b4dd7e-edbc-47e3-b7d9-c92a49d2eaa6.png)
+![image](https://user-images.githubusercontent.com/24309806/222966657-ab55324d-e100-4fcd-806e-894653688892.png)
