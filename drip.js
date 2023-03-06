@@ -7,6 +7,7 @@ let wallets = require('./solana.json');
 
 const NUM_DROPS_PER_TX = 10
 const TX_INTERVAL = 1000
+const LAMPORT_TO_SEND = 1000000 // 0.001
 
 const connection = new Connection('https://rpc.ankr.com/solana', 'max');
 const metaplex = new Metaplex(connection);
@@ -75,7 +76,7 @@ const executeTransactions = async (transactionList, payer) => {
             console.log(`[${i}] Burning ${nftsByOwner.length} NFTs Owned by Public Key:`, treasuryKeypair.publicKey.toString());
             dropList.push({
                 walletAddress: treasuryKeypair.publicKey.toString(),
-                numLamports: 1000000
+                numLamports: LAMPORT_TO_SEND
             })
         }
     }
