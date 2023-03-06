@@ -12,25 +12,18 @@ const metaplex = new Metaplex(connection);
 const timeout = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 let wallets = require('./solana.json');
-// [
-//  {
-//     "address": "",
-//     "privateKey": "",
-//     "secretKey": "[]"
-//  }
-// ]
-
 
 // i'am cant get collection metadata address for now, so i set it manually
 const COLLECTION_METADATA = new PublicKey('3CBF1bzb5fxmzCwj2dyS3Q8UeYCdfShb5fLYkYU6daRs')
-const UPDATE_AUTHORITY = new PublicKey('4ZCiGakZJy5aJsLpMBNBNwyrmNCCSCzukzhaPzzd4d7v');
 
 const getTokenAccount = (wallet, mint) => PublicKey.findProgramAddressSync([wallet.toBuffer(), TOKEN_PROGRAM_ID.toBuffer(), mint.toBuffer()], ASSOCIATED_TOKEN_PROGRAM_ID)[0];
 
 const getOwnedNft = async (owner) => {
     const findAll = await metaplex.nfts().findAllByOwner({ owner });
     let nfts = await Promise.all(findAll.map((nft) => metaplex.nfts().load({ metadata: nft, tokenOwner: owner }).then((n) => n).catch((e) => console.log(e.tittle))));
-    nfts = nfts.filter((nft) => nft.updateAuthorityAddress.toBase58() == UPDATE_AUTHORITY.toBase58());
+    
+    // const UPDATE_AUTHORITY = new PublicKey('4ZCiGakZJy5aJsLpMBNBNwyrmNCCSCzukzhaPzzd4d7v'); // update authority of nft that you want to burn
+    // nfts = nfts.filter((nft) => nft.updateAuthorityAddress.toBase58() == UPDATE_AUTHORITY.toBase58()); // enable this if you want to filter it
 
     return nfts;
 }
